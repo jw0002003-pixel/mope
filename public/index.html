@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Mope Clone</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #7db76d; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; overflow: hidden; height: 100vh; }
+    html, body { height: 100%; overflow: hidden; }
+    canvas { display: block; touch-action: none; }
+    #hud { display: none !important; }
+    #leaderboard { position: fixed; top: 10px; right: 10px; color: #fff; font-size: 16px; text-shadow: 0 2px 4px rgba(0,0,0,0.6); text-align: right; pointer-events: none; z-index: 5; font-weight: 600; }
+    #minimap { position: fixed; bottom: 130px; right: 10px; border: 3px solid rgba(255,255,255,0.7); border-radius: 8px; background: rgba(0,0,0,0.4); z-index: 5; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+
+    /* МЕНЮ */
+    #menu {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: linear-gradient(135deg, #8bc34a 0%, #689f38 50%, #558b2f 100%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 100; padding: 20px; overflow: hidden;
+    }
+    #menu::before, #menu::after { content: ''; position: absolute; background: rgba(255,255,255,0.15); border-radius: 100px; animation: float 20s infinite ease-in-out; }
+    #menu::before { width: 300px; height: 80px; top: 10%; left: -100px; }
+    #menu::after { width: 400px; height: 100px; bottom: 15%; right: -150px; animation-delay: -10s; }
+    @keyframes float { 0%, 100% { transform: translateX(0) translateY(0); } 50% { transform: translateX(80px) translateY(-20px); } }
+    .menu-title { font-size: 64px; font-weight: 900; color: #fff; text-shadow: 0 4px 0 #4a7a32, 0 8px 20px rgba(0,0,0,0.4); margin-bottom: 10px; letter-spacing: 3px; z-index: 1; }
+    .menu-subtitle { font-size: 18px; color: rgba(255,255,255,0.85); margin-bottom: 40px; z-index: 1; }
+    .input-container { display: flex; flex-direction: column; align-items: center; gap: 15px; z-index: 1; margin-bottom: 30px; }
+    #name-input { width: 360px; max-width: 90vw; padding: 18px 24px; font-size: 20px; font-weight: 600; color: #2c3e2c; background: rgba(255,255,255,0.95); border: 4px solid rgba(255,255,255,0.7); border-radius: 50px; outline: none; text-align: center; box-shadow: 0 4px 0 rgba(0,0,0,0.15), 0 6px 20px rgba(0,0,0,0.2); transition: all 0.15s; }
+    #name-input:focus { border-color: #ffeb3b; box-shadow: 0 4px 0 rgba(0,0,0,0.15), 0 0 30px rgba(255,235,59,0.6); transform: scale(1.02); }
+    #startBtn { padding: 20px 90px; font-size: 32px; font-weight: 900; color: #fff; background: linear-gradient(180deg, #ffd54f 0%, #ffb300 50%, #f57c00 100%); border: none; border-radius: 60px; cursor: pointer; letter-spacing: 3px; text-shadow: 0 2px 0 rgba(0,0,0,0.2); box-shadow: 0 6px 0 #e65100, 0 10px 30px rgba(0,0,0,0.4); transition: all 0.1s; z-index: 1; }
+    #startBtn:hover { transform: translateY(-2px); box-shadow: 0 8px 0 #e65100, 0 12px 35px rgba(0,0,0,0.5); }
+    #startBtn:active { transform: translateY(4px); box-shadow: 0 2px 0 #e65100, 0 4px 10px rgba(0,0,0,0.3); }
+    .hint { margin-top: 40px; font-size: 14px; color: rgba(255,255,255,0.7); text-align: center; line-height: 1.7; z-index: 1; max-width: 600px; }
+    .hint b { color: #fff; background: rgba(0,0,0,0.25); padding: 2px 8px; border-radius: 4px; font-weight: 700; font-family: monospace; }
+    .version { position: absolute; bottom: 15px; right: 20px; color: rgba(255,255,255,0.5); font-size: 12px; z-index: 1; }
+
+    /* ЧАТ */
+    #chat-input { position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%); width: 500px; max-width: 90vw; padding: 12px 20px; font-size: 16px; border: 2px solid #fff; border-radius: 25px; background: rgba(0,0,0,0.75); color: #fff; outline: none; z-index: 60; text-align: center; }
+
+    /* НИЖНЯЯ ПОЛОСА */
+    #bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; height: 60px; background: rgba(0,0,0,0.6); z-index: 40; pointer-events: none; display: none; }
+    #xp-bar { position: absolute; bottom: 0; left: 0; width: 100%; height: 20px; background: rgba(0,0,0,0.7); }
+    #xp-fill { height: 100%; background: linear-gradient(90deg, #f4a100, #ffcc00, #ffe066); border-right: 2px solid #fff; transition: width 0.2s; }
+    #water-bar { position: absolute; bottom: 40px; left: 0; width: 100%; height: 14px; background: rgba(0,0,0,0.7); }
+    #water-fill { height: 100%; background: linear-gradient(90deg, #0077b6, #00b4d8, #90e0ef); border-right: 2px solid #fff; transition: width 0.2s; }
+    #air-bar { position: absolute; bottom: 20px; left: 0; width: 100%; height: 14px; background: rgba(0,0,0,0.7); }
+    #air-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #0099ff, #66ccff, #99ddff); border-right: 2px solid #fff; transition: width 0.2s; }
+    #bar-label { position: absolute; bottom: 58px; left: 0; width: 100%; height: 20px; text-align: center; line-height: 20px; color: #fff; font-size: 14px; text-shadow: 0 0 4px #000; font-weight: bold; }
+
+    /* ИКОНКА БИОМА (слева от HP-бара) */
+    #biome-icon {
+      position: fixed; bottom: 75px; left: 20px;
+      font-size: 32px; z-index: 45; pointer-events: none;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+      transition: transform 0.2s;
+    }
+    #biome-icon.pulse { animation: biomePulse 0.5s ease-out; }
+    @keyframes biomePulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.4); }
+      100% { transform: scale(1); }
+    }
+
+    /* ПАНЕЛЬ СПОСОБНОСТЕЙ */
+    #abilities-panel { position: fixed; bottom: 20px; right: 20px; display: none; gap: 12px; z-index: 50; padding: 10px; background: rgba(0,0,0,0.5); border-radius: 20px; border: 2px solid rgba(255,255,255,0.2); backdrop-filter: blur(4px); }
+    .ability-slot { position: relative; width: 80px; height: 80px; border-radius: 50%; background: rgba(30,40,55,0.85); border: 3px solid rgba(255,255,255,0.5); display: flex; align-items: center; justify-content: center; flex-direction: column; box-shadow: 0 4px 12px rgba(0,0,0,0.5); transition: all 0.15s; }
+    .ability-slot.ready { border-color: #4ade80; box-shadow: 0 4px 12px rgba(74,222,128,0.4), inset 0 0 12px rgba(74,222,128,0.2); }
+    .ability-slot.cooldown { border-color: #f87171; opacity: 0.6; }
+    .ability-slot .ability-key { position: absolute; top: -8px; right: -8px; background: #1a1a1a; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px; border: 2px solid rgba(255,255,255,0.4); font-family: monospace; }
+    .ability-slot .ability-icon { font-size: 36px; line-height: 1; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }
+    .ability-slot .ability-cd { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.9); color: #ffcc00; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 8px; white-space: nowrap; font-family: monospace; display: none; }
+    .ability-slot.cooldown .ability-cd { display: block; }
+
+    /* КНОПКА 1v1 */
+    #arena-btn {
+      position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+      display: none; align-items: center; gap: 10px;
+      padding: 12px 28px; font-size: 20px; font-weight: 900; color: #fff;
+      background: linear-gradient(180deg, #ff4757 0%, #c0392b 100%);
+      border: 3px solid #ff6b81; border-radius: 40px; cursor: pointer;
+      letter-spacing: 2px; text-shadow: 0 2px 0 rgba(0,0,0,0.3);
+      box-shadow: 0 4px 0 #7a1a1a, 0 8px 25px rgba(255, 71, 87, 0.5);
+      transition: all 0.15s; z-index: 55;
+      animation: arenaPulse 2s infinite ease-in-out;
+    }
+    #arena-btn:hover { transform: translateX(-50%) translateY(-3px); box-shadow: 0 7px 0 #7a1a1a, 0 12px 35px rgba(255, 71, 87, 0.7); }
+    #arena-btn:active { transform: translateX(-50%) translateY(3px); box-shadow: 0 1px 0 #7a1a1a; }
+    @keyframes arenaPulse {
+      0%, 100% { box-shadow: 0 4px 0 #7a1a1a, 0 8px 25px rgba(255, 71, 87, 0.5); }
+      50%      { box-shadow: 0 4px 0 #7a1a1a, 0 8px 40px rgba(255, 71, 87, 0.9); }
+    }
+
+    /* МОДАЛКА АРЕНА-ИНВАЙТА */
+    #arena-invite-modal {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center; z-index: 170;
+    }
+    #arena-invite-modal.show { display: flex; animation: questFadeIn 0.3s ease-out; }
+    .arena-invite-content {
+      background: linear-gradient(135deg, #4a1a1a 0%, #2a0a0a 100%);
+      border-radius: 24px; padding: 36px 48px; text-align: center;
+      min-width: 400px; max-width: 90vw;
+      border: 3px solid rgba(255, 71, 87, 0.7);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 80px rgba(255, 71, 87, 0.4), inset 0 0 40px rgba(255, 71, 87, 0.1);
+      color: #fff; animation: arenaShake 0.5s ease-out;
+    }
+    @keyframes arenaShake {
+      0% { transform: scale(0.8); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+    .arena-invite-icon { font-size: 64px; margin-bottom: 10px; filter: drop-shadow(0 0 15px rgba(255, 71, 87, 0.8)); }
+    .arena-invite-title { font-size: 26px; font-weight: 900; color: #ff6b81; text-shadow: 0 0 20px rgba(255, 71, 87, 0.6); margin-bottom: 15px; letter-spacing: 2px; }
+    .arena-invite-text { font-size: 16px; color: rgba(255,255,255,0.85); margin-bottom: 25px; line-height: 1.5; }
+    #arena-from-name { color: #ffd700; font-weight: 900; }
+    .arena-invite-buttons { display: flex; gap: 15px; justify-content: center; }
+    .arena-btn-accept, .arena-btn-decline {
+      padding: 14px 32px; font-size: 17px; font-weight: 900; color: #fff;
+      border: none; border-radius: 14px; cursor: pointer; letter-spacing: 1.5px; transition: all 0.1s;
+    }
+    .arena-btn-accept { background: linear-gradient(180deg, #4ade80 0%, #16a34a 100%); box-shadow: 0 5px 0 #14532d, 0 8px 20px rgba(74, 222, 128, 0.4); }
+    .arena-btn-accept:hover { transform: translateY(-2px); }
+    .arena-btn-accept:active { transform: translateY(3px); }
+    .arena-btn-decline { background: linear-gradient(180deg, #9ca3af 0%, #4b5563 100%); box-shadow: 0 5px 0 #1f2937, 0 8px 20px rgba(0,0,0,0.4); }
+    .arena-btn-decline:hover { transform: translateY(-2px); }
+    .arena-btn-decline:active { transform: translateY(3px); }
+
+    /* МОДАЛКА ЭВОЛЮЦИИ */
+    #evolution-modal { position: fixed; top: 0; left: 0; width: 100%; height: auto; background: transparent; display: none; align-items: flex-start; justify-content: center; z-index: 150; pointer-events: none; padding-top: 20px; }
+    #evolution-modal.show { display: flex; }
+    .evolution-content {
+      background: linear-gradient(135deg, rgba(139, 195, 74, 0.95) 0%, rgba(104, 159, 56, 0.95) 100%);
+      backdrop-filter: blur(8px); border-radius: 20px; padding: 20px 40px 25px; text-align: center;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.5); border: 3px solid rgba(255,255,255,0.5);
+      animation: slideDownTop 0.4s ease-out; max-width: 90vw; pointer-events: auto;
+    }
+    @keyframes slideDownTop { from { opacity: 0; transform: translateY(-80px); } to { opacity: 1; transform: translateY(0); } }
+    .evolution-title { font-size: 24px; font-weight: 900; color: #fff; text-shadow: 0 3px 0 rgba(0,0,0,0.3); margin-bottom: 12px; letter-spacing: 2px; }
+    .evolution-row { display: flex; align-items: center; justify-content: center; gap: 30px; margin: 5px 0 10px; }
+    .evolution-side { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .evolution-side-label { font-size: 11px; color: rgba(255,255,255,0.8); font-weight: 700; text-transform: uppercase; }
+    .evolution-animal { width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4)); }
+    .evolution-animal img { width: 100%; height: 100%; object-fit: contain; image-rendering: crisp-edges; }
+    .evolution-animal.old { opacity: 0.5; filter: grayscale(0.7); }
+    .evolution-arrow { font-size: 36px; color: #ffeb3b; text-shadow: 0 2px 0 rgba(0,0,0,0.3); animation: arrowPulse 1s infinite ease-in-out; }
+    @keyframes arrowPulse { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(8px); } }
+    .evolution-name { font-size: 22px; font-weight: 900; color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,0.3); margin-top: 5px; }
+    .evolution-level { font-size: 13px; color: #ffeb3b; font-weight: 700; margin-bottom: 15px; }
+    #evolution-btn { padding: 12px 50px; font-size: 18px; font-weight: 900; color: #fff; background: linear-gradient(180deg, #ffd54f 0%, #ffb300 50%, #f57c00 100%); border: none; border-radius: 40px; cursor: pointer; letter-spacing: 2px; box-shadow: 0 4px 0 #e65100, 0 8px 20px rgba(0,0,0,0.4); }
+    #evolution-btn:hover { transform: translateY(-2px); }
+    #evolution-btn:active { transform: translateY(2px); }
+
+    /* МОДАЛКА КВЕСТА */
+    #quest-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; z-index: 160; opacity: 0; transition: opacity 0.3s ease; }
+    #quest-modal.show { display: flex; opacity: 1; animation: questFadeIn 0.35s ease-out; }
+    @keyframes questFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .quest-content {
+      background: linear-gradient(135deg, #1e2a44 0%, #0f1729 100%);
+      border-radius: 24px; padding: 32px 48px 28px; text-align: center;
+      min-width: 460px; max-width: 90vw;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 80px rgba(255, 215, 0, 0.15), inset 0 0 40px rgba(255, 215, 0, 0.05);
+      border: 3px solid rgba(255, 215, 0, 0.45); position: relative;
+      transform: scale(0.85) translateY(-30px); opacity: 0;
+      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+      color: #fff;
+    }
+    #quest-modal.show .quest-content { transform: scale(1) translateY(0); opacity: 1; }
+    .quest-content::before { content: ''; position: absolute; top: -3px; left: 20%; right: 20%; height: 3px; background: linear-gradient(90deg, transparent, #ffd700, transparent); border-radius: 2px; filter: blur(1px); }
+    .quest-title { font-size: 28px; font-weight: 900; color: #ffd700; text-shadow: 0 0 20px rgba(255, 215, 0, 0.6), 0 3px 0 rgba(0,0,0,0.5); margin-bottom: 8px; letter-spacing: 3px; }
+    .quest-subtitle { font-size: 14px; color: rgba(255,255,255,0.65); margin-bottom: 24px; font-style: italic; }
+    .quest-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 22px; max-height: 400px; overflow-y: auto; }
+    .quest-item { display: flex; align-items: center; gap: 16px; padding: 8px 16px; background: rgba(0, 0, 0, 0.4); border-radius: 10px; border: 2px solid rgba(255, 255, 255, 0.12); transition: all 0.35s ease; position: relative; overflow: hidden; }
+    .quest-item::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #f87171; transition: all 0.35s ease; }
+    .quest-item.done { background: rgba(74, 222, 128, 0.12); border-color: rgba(74, 222, 128, 0.55); box-shadow: 0 0 25px rgba(74, 222, 128, 0.25); }
+    .quest-item.done::before { background: #4ade80; box-shadow: 0 0 12px #4ade80; }
+    .quest-item.done .quest-name { color: #86efac; text-decoration: line-through; }
+    .quest-name { flex: 1; text-align: left; font-size: 14px; font-weight: 700; color: #fff; }
+    .quest-status { font-size: 12px; font-weight: 800; color: #f87171; padding: 3px 10px; border-radius: 8px; background: rgba(248, 113, 113, 0.15); }
+    .quest-item.done .quest-status { color: #4ade80; background: rgba(74, 222, 128, 0.2); }
+    .quest-king { margin-top: 10px; padding: 14px 18px; text-align: center; font-size: 16px; font-weight: 700; background: rgba(255, 215, 0, 0.08); border: 2px solid rgba(255, 215, 0, 0.3); border-radius: 14px; color: #ffd700; text-shadow: 0 0 10px rgba(255, 215, 0, 0.4); }
+    .quest-king.ready { background: linear-gradient(90deg, rgba(255,215,0,0.2), rgba(255,140,0,0.2), rgba(255,215,0,0.2)); border-color: #ffd700; box-shadow: 0 0 30px rgba(255, 215, 0, 0.5); animation: kingPulse 1.5s infinite ease-in-out; }
+    @keyframes kingPulse { 0%, 100% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.5); } 50% { box-shadow: 0 0 50px rgba(255, 215, 0, 0.9); } }
+    #quest-close-btn { margin-top: 22px; display: block; width: 100%; padding: 13px; font-size: 16px; font-weight: 900; color: #fff; background: linear-gradient(180deg, #4a90e2 0%, #2c5aa0 100%); border: none; border-radius: 14px; cursor: pointer; letter-spacing: 2px; box-shadow: 0 5px 0 #1a3a6b; }
+    #quest-close-btn:hover { transform: translateY(-2px); }
+
+    /* МОБИЛЬНОЕ */
+    #joystick { position: fixed; bottom: 20px; left: 20px; width: 160px; height: 160px; z-index: 100; display: none; touch-action: none; user-select: none; }
+    #joystick-base { width: 160px; height: 160px; border-radius: 50%; background: rgba(255,255,255,0.12); border: 3px solid rgba(255,255,255,0.35); position: relative; }
+    #joystick-stick { width: 70px; height: 70px; border-radius: 50%; background: rgba(255,255,255,0.55); position: absolute; top: 45px; left: 45px; }
+    #mobile-buttons { position: fixed; bottom: 30px; right: 20px; z-index: 100; display: none; flex-direction: column; gap: 15px; }
+    #mobile-buttons button { width: 75px; height: 75px; border-radius: 50%; font-size: 28px; color: #fff; border: 3px solid rgba(255,255,255,0.6); background: rgba(0,0,0,0.4); }
+    #btn-ability { background: rgba(255, 150, 0, 0.55); }
+    #btn-boost { background: rgba(255, 220, 0, 0.55); }
+
+    @media (max-width: 700px) {
+      .menu-title { font-size: 42px; }
+      .menu-subtitle { font-size: 14px; margin-bottom: 25px; }
+      #name-input { font-size: 16px; padding: 14px 18px; }
+      #startBtn { padding: 16px 60px; font-size: 24px; }
+      #leaderboard { font-size: 12px; }
+      #minimap { width: 100px !important; height: 100px !important; bottom: 150px; right: 5px; }
+      #bar-label { font-size: 12px; }
+      #biome-icon { font-size: 24px; bottom: 65px; left: 10px; }
+      #joystick { width: 130px; height: 130px; bottom: 15px; left: 15px; }
+      #joystick-base { width: 130px; height: 130px; }
+      #joystick-stick { width: 55px; height: 55px; top: 37px; left: 37px; }
+      #mobile-buttons button { width: 60px; height: 60px; font-size: 22px; }
+      #abilities-panel { bottom: 100px; right: 10px; gap: 8px; padding: 6px; }
+      .ability-slot { width: 60px; height: 60px; }
+      .ability-slot .ability-icon { font-size: 26px; }
+      #arena-btn { font-size: 16px; padding: 10px 22px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="hud"></div>
+  <div id="leaderboard"></div>
+  <canvas id="minimap" width="160" height="160"></canvas>
+  <div id="biome-icon">🌍</div>
+
+  <!-- 🎵 Музыка меню -->
+  <audio id="menu-music" src="audio/theme_gta.mp3" loop preload="auto"></audio>
+
+  <div id="bottom-bar">
+    <div id="bar-label">0 XP (0 XP Next)</div>
+    <div id="water-bar"><div id="water-fill" style="width: 100%;"></div></div>
+    <div id="air-bar"><div id="air-fill" style="width: 100%;"></div></div>
+    <div id="xp-bar"><div id="xp-fill" style="width: 0%;"></div></div>
+  </div>
+
+  <button id="arena-btn">⚔️ 1v1</button>
+
+  <div id="abilities-panel">
+    <div class="ability-slot" id="slot-ability">
+      <div class="ability-key">W</div>
+      <div class="ability-icon">🐭</div>
+      <div class="ability-cd" id="ability-cd"></div>
+    </div>
+    <div class="ability-slot" id="slot-tail">
+      <div class="ability-key">S</div>
+      <div class="ability-icon">🦎</div>
+      <div class="ability-cd" id="tail-cd"></div>
+    </div>
+    <div class="ability-slot" id="slot-boost">
+      <div class="ability-key">ЛКМ</div>
+      <div class="ability-icon">⚡</div>
+      <div class="ability-cd" id="boost-cd"></div>
+    </div>
+  </div>
+
+  <input id="chat-input" type="text" maxlength="80" placeholder="Введи сообщение и нажми Enter..." style="display:none;" />
+
+  <div id="menu">
+    <div class="menu-title">MOPE CLONE</div>
+    <div class="menu-subtitle">🎮 Выживай • Ешь • Эволюционируй</div>
+    <div class="input-container">
+      <input id="name-input" type="text" maxlength="16" placeholder="Введи свой ник..." />
+      <button id="startBtn">▶ PLAY</button>
+    </div>
+    <div class="hint">
+      <b>Мышь</b> — движение &nbsp;•&nbsp; <b>ЛКМ</b> — ускорение &nbsp;•&nbsp; <b>ПКМ</b> — нырок/полёт<br>
+      <b>W</b> — способность &nbsp;•&nbsp; <b>S</b> — вода (1-14) / хвост (17)<br>
+      <b>⚔️ 1v1</b> — арена (15+) &nbsp;•&nbsp; <b>Enter</b> — чат
+    </div>
+    <div class="version">v3.0</div>
+  </div>
+
+  <div id="joystick">
+    <div id="joystick-base">
+      <div id="joystick-stick"></div>
+    </div>
+  </div>
+  <div id="mobile-buttons">
+    <button id="btn-ability">W</button>
+    <button id="btn-boost">⚡</button>
+  </div>
+
+  <!-- ЭВОЛЮЦИЯ -->
+  <div id="evolution-modal">
+    <div class="evolution-content">
+      <div class="evolution-title">🎉 ЭВОЛЮЦИЯ!</div>
+      <div class="evolution-row">
+        <div class="evolution-side">
+          <div class="evolution-side-label">Было</div>
+          <div class="evolution-animal old" id="evolution-icon-old">🐭</div>
+        </div>
+        <div class="evolution-arrow">➜</div>
+        <div class="evolution-side">
+          <div class="evolution-side-label">Стало</div>
+          <div class="evolution-animal" id="evolution-icon">🐰</div>
+        </div>
+      </div>
+      <div class="evolution-name" id="evolution-name">Кролик</div>
+      <div class="evolution-level" id="evolution-level">2 уровень</div>
+      <button id="evolution-btn">▶ Выбрать</button>
+    </div>
+  </div>
+
+  <!-- КВЕСТ -->
+  <div id="quest-modal">
+    <div class="quest-content">
+      <div class="quest-title">📜 КВЕСТ КОРОЛЯ</div>
+      <div class="quest-subtitle">Убей всех, чтобы стать Королём</div>
+      <div class="quest-list" id="quest-list"></div>
+      <div class="quest-king" id="quest-king-status">Убито: 0/16</div>
+      <button id="quest-close-btn">ЗАКРЫТЬ</button>
+    </div>
+  </div>
+
+  <!-- АРЕНА -->
+  <div id="arena-invite-modal">
+    <div class="arena-invite-content">
+      <div class="arena-invite-icon">⚔️</div>
+      <div class="arena-invite-title">ВЫЗОВ НА АРЕНУ!</div>
+      <div class="arena-invite-text">Игрок <span id="arena-from-name">???</span> вызывает тебя на бой 1v1!</div>
+      <div class="arena-invite-buttons">
+        <button class="arena-btn-accept" id="arena-accept-btn">✅ ПРИНЯТЬ</button>
+        <button class="arena-btn-decline" id="arena-decline-btn">❌ ОТКЛОНИТЬ</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="skins.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
